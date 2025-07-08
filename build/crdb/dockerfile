@@ -1,0 +1,16 @@
+FROM us-east1-docker.pkg.dev/crl-ci-images/cockroach/bazel:20250418-212710
+
+ENV USER=roach
+
+# Install missing packages
+RUN apt-get update && apt-get install -y \
+	wget \
+	tar \
+	libresolv-wrapper
+
+# Install go
+RUN wget https://golang.org/dl/go1.24.2.linux-amd64.tar.gz -O /tmp/go.tar.gz \
+	&& tar -C /usr/local -xzf /tmp/go.tar.gz \
+	&& rm /tmp/go.tar.gz
+
+ENV PATH="$PATH:/usr/local/go/bin/"
