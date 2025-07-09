@@ -4,25 +4,22 @@ import typer
 
 app = typer.Typer()
 
+IMAGE_TAG = "cockroach-builder"
 
-# NOTE: If the linked libraries are outdated and need to be recopied copy
-# libresolv_wrapper.so into ../cockroach/artifacts directory
-@app.command()
-def build():
-    image_tag = "cockroach-builder"
 
-    # Build Build-Container
+def build_container():
     dockerfile_path = "./../build/crdb/dockerfile"
     context_path = "./.."
 
-    cmd = ["docker", "build", "-f", dockerfile_path, "-t", image_tag, context_path]
+    cmd = ["docker", "build", "-f", dockerfile_path, "-t", IMAGE_TAG, context_path]
 
     subprocess.run(
         cmd,
         check=True,
     )
 
-    # Run Build-Container
+
+def run_container():
     workdir_path = "/app/cockroach"
     volume_app_path = "./../:/app"
     volume_bzlhome_path = "bzlhome:/home/roach:delegated"
@@ -41,13 +38,21 @@ def build():
         volume_bzlhome_path,
         "-u",
         user,
-        image_tag,
+        IMAGE_TAG,
     ]
 
     subprocess.run(
         cmd,
         check=True,
     )
+
+
+# NOTE: If the linked libraries are outdated and need to be recopied copy
+# libresolv_wrapper.so into ../cockroach/artifacts directory
+@app.command()
+def build():
+    build_container()
+    run_container()
 
 
 if __name__ == "__main__":

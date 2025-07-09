@@ -5,11 +5,11 @@ import typer
 
 app = typer.Typer()
 
+IMAGE_TAG = "crdb-experiment"
+NETWORK = "crdb-net"
 
-@app.command()
-def local(cluster_size: int):
-    # Build Image
-    image_tag = "crdb-experiment"
+
+def build_image():
     dockerfile_path = "./../build/local/dockerfile"
     build_arg = "BIN_NAME=cockroach-baseline"
     context_path = "./.."
@@ -22,7 +22,7 @@ def local(cluster_size: int):
         "--build-arg",
         build_arg,
         "-t",
-        image_tag,
+        IMAGE_TAG,
         context_path,
     ]
 
@@ -31,23 +31,28 @@ def local(cluster_size: int):
         check=True,
     )
 
-    # Create network
-    network = "crdb-net"
+
+def create_network():
     driver = "bridge"
 
-    cmd = ["docker", "network", "create", "-d", driver, network]
+    cmd = ["docker", "network", "create", "-d", driver, NETWORK]
 
     subprocess.run(cmd, check=False)
 
-    # Spin up cluster
-    logs_dir = "./logs"
+
+def create_join_str(cluster_size: int) -> str:
     cluster_names = []
 
     for i in range(1, cluster_size + 1):
         cluster_names.append(f"server-{i}:26257")
 
-    cluster_names = ",".join(cluster_names)
+    return ",".join(cluster_names)
+
+
+def start_nodes(cluster_size: int):
+    logs_dir = "./logs"
     os.makedirs(logs_dir, exist_ok=True)
+    join_str = create_join_str(cluster_size)
 
     for i in range(1, cluster_size + 1):
         sql_port = 26257 + i
@@ -62,18 +67,18 @@ def local(cluster_size: int):
             "--name",
             name,
             "--network",
-            network,
+            NETWORK,
             "-p",
             f"{sql_port}:26257",
             "-p",
             f"{dashboard_port}:8080",
             "-v",
             volume_logs,
-            image_tag,
+            IMAGE_TAG,
             "./cockroach",
             "start",
             "--insecure",
-            f"--join={cluster_names}",
+            f"--join={join_str}",
             "--store=/app/store",
             "--log-dir=/app/logs",
             "--listen-addr=0.0.0.0:26257",
@@ -82,14 +87,16 @@ def local(cluster_size: int):
         ]
         subprocess.run(cmd, check=True)
 
+
+def init_cluster():
     subprocess.run(
         [
             "docker",
             "run",
             "--rm",
             "--network",
-            network,
-            image_tag,
+            NETWORK,
+            IMAGE_TAG,
             "./cockroach",
             "init",
             "--insecure",
@@ -98,14 +105,17 @@ def local(cluster_size: int):
         check=True,
     )
 
+
+def run_experiment():
+    # init workload
     subprocess.run(
         [
             "docker",
             "run",
             "--rm",
             "--network",
-            network,
-            image_tag,
+            NETWORK,
+            IMAGE_TAG,
             "./cockroach",
             "workload",
             "init",
@@ -115,14 +125,15 @@ def local(cluster_size: int):
         check=True,
     )
 
+    # run workload
     subprocess.run(
         [
             "docker",
             "run",
             "--rm",
             "--network",
-            network,
-            image_tag,
+            NETWORK,
+            IMAGE_TAG,
             "./cockroach",
             "workload",
             "run",
@@ -133,8 +144,20 @@ def local(cluster_size: int):
         check=True,
     )
 
+
+def stop_nodes(cluster_size):
     for i in range(1, cluster_size + 1):
         subprocess.run(["docker", "stop", f"server-{i}"])
+
+
+@app.command()
+def local(cluster_size: int):
+    build_image()
+    create_network()
+    start_nodes(cluster_size)
+    init_cluster()
+    run_experiment()
+    stop_nodes(cluster_size)
 
 
 @app.command()
