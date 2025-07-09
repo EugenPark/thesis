@@ -138,6 +138,44 @@ def run(deployment: Deployment, cluster_size: int):
                 check=True,
             )
 
+            subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--network",
+                    network,
+                    image_tag,
+                    "./cockroach",
+                    "workload",
+                    "init",
+                    "ycsb",
+                    "postgresql://root@server-1:26257?sslmode=disable",
+                ],
+                check=True,
+            )
+
+            subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--network",
+                    network,
+                    image_tag,
+                    "./cockroach",
+                    "workload",
+                    "run",
+                    "ycsb",
+                    "--duration=1m",
+                    "postgresql://root@server-1:26257?sslmode=disable",
+                ],
+                check=True,
+            )
+
+            for i in range(1, cluster_size + 1):
+                subprocess.run(["docker", "stop", f"server-{i}"])
+
         case Deployment.REMOTE:
             print("Remote")
 
