@@ -1,0 +1,13 @@
+FROM ubuntu:22.04
+
+WORKDIR /app
+
+ARG BIN_NAME=cockroach
+
+RUN apt-get update
+RUN apt-get install curl -y
+
+RUN echo ${BIN_NAME}
+
+COPY cockroach/${BIN_NAME} /app/cockroach
+COPY cockroach/artifacts/libresolv_wrapper.so /lib/libresolv_wrapper.so
