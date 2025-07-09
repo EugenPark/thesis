@@ -1,8 +1,5 @@
 import subprocess
-import typer
 
-
-app = typer.Typer()
 
 IMAGE_TAG = "cockroach-builder"
 
@@ -45,15 +42,3 @@ def run_container():
         cmd,
         check=True,
     )
-
-
-# NOTE: If the linked libraries are outdated and need to be recopied copy
-# libresolv_wrapper.so into ../cockroach/artifacts directory
-@app.command()
-def build():
-    build_container()
-    run_container()
-
-
-if __name__ == "__main__":
-    app()

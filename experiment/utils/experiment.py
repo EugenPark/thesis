@@ -3,18 +3,21 @@ import subprocess
 from enum import Enum
 
 
-IMAGE_TAG = "crdb-experiment"
 NETWORK = "crdb-net"
 
 
-class Deployment(str, Enum):
-    LOCAL = "local"
-    REMOTE = "remote"
+class ExperimentType(Enum):
+    BASELINE = "baseline"
+    THESIS = "thesis"
+
+    def __str__(self):
+        return self.value
 
 
-def _build_image():
+def _build_image(experiment_type: ExperimentType) -> str:
     dockerfile_path = "./../build/local/dockerfile"
-    build_arg = "BIN_NAME=cockroach-baseline"
+    build_arg = f"BIN_NAME=cockroach-{str(experiment_type)}"
+    image_tag = f"crdb-experiment-{str(experiment_type)}"
     context_path = "./.."
 
     cmd = [
@@ -25,7 +28,7 @@ def _build_image():
         "--build-arg",
         build_arg,
         "-t",
-        IMAGE_TAG,
+        image_tag,
         context_path,
     ]
 
@@ -33,6 +36,8 @@ def _build_image():
         cmd,
         check=True,
     )
+
+    return image_tag
 
 
 def _create_network():
@@ -52,23 +57,22 @@ def _create_join_str(cluster_size: int) -> str:
     return ",".join(cluster_names)
 
 
-def _start_nodes(cluster_size: int):
-    logs_dir = "./logs"
-    os.makedirs(logs_dir, exist_ok=True)
+def _start_nodes(experiment_name: str, image_tag: str, cluster_size: int):
     join_str = _create_join_str(cluster_size)
 
     for i in range(1, cluster_size + 1):
         sql_port = 26257 + i
         dashboard_port = 8080 + i
-        name = f"server-{i}"
-        volume_logs = f"./logs/server-{i}:/app/logs"
+        server_name = f"server-{i}"
+        logs_output_dir = f"./runs/{experiment_name}/logs/{server_name}"
+        os.makedirs(logs_output_dir, exist_ok=True)
         cmd = [
             "docker",
             "run",
             "--rm",
             "-d",
             "--name",
-            name,
+            server_name,
             "--network",
             NETWORK,
             "-p",
@@ -76,8 +80,8 @@ def _start_nodes(cluster_size: int):
             "-p",
             f"{dashboard_port}:8080",
             "-v",
-            volume_logs,
-            IMAGE_TAG,
+            f"{logs_output_dir}:/app/logs",
+            image_tag,
             "./cockroach",
             "start",
             "--insecure",
@@ -85,13 +89,13 @@ def _start_nodes(cluster_size: int):
             "--store=/app/store",
             "--log-dir=/app/logs",
             "--listen-addr=0.0.0.0:26257",
-            f"--advertise-addr={name}:26257",
+            f"--advertise-addr={server_name}:26257",
             "--http-addr=0.0.0.0:8080",
         ]
         subprocess.run(cmd, check=True)
 
 
-def _init_cluster():
+def _init_cluster(image_tag: str):
     subprocess.run(
         [
             "docker",
@@ -99,7 +103,7 @@ def _init_cluster():
             "--rm",
             "--network",
             NETWORK,
-            IMAGE_TAG,
+            image_tag,
             "./cockroach",
             "init",
             "--insecure",
@@ -109,8 +113,14 @@ def _init_cluster():
     )
 
 
-def _run_experiment(workload_cmd: str):
-    local_output_dir = "./results/data"
+def _run_experiment(
+    name: str,
+    run: int,
+    experiment_type: ExperimentType,
+    image_tag: str,
+    workload_cmd: str,
+):
+    local_output_dir = f"./runs/{name}/results/data/run-{run}-{str(experiment_type)}"
     os.makedirs(local_output_dir, exist_ok=True)
     remote_output_dir = "/tmp/data"
 
@@ -122,7 +132,7 @@ def _run_experiment(workload_cmd: str):
             "--rm",
             "--network",
             NETWORK,
-            IMAGE_TAG,
+            image_tag,
             "./cockroach",
             "workload",
             "init",
@@ -136,7 +146,7 @@ def _run_experiment(workload_cmd: str):
     cmd = (
         f"mkdir -p {remote_output_dir} "
         "&& ./cockroach workload run "
-        f"{workload_cmd.value} "
+        f"{workload_cmd} "
         f"--histograms={remote_output_dir}/hdrhistograms.json "
         f"--display-format incremental-json "
         f"postgresql://root@server-1:26257?sslmode=disable "
@@ -152,7 +162,7 @@ def _run_experiment(workload_cmd: str):
             NETWORK,
             "-v",
             f"{local_output_dir}:{remote_output_dir}",
-            IMAGE_TAG,
+            image_tag,
             "bash",
             "-c",
             cmd,
@@ -166,10 +176,23 @@ def _stop_nodes(cluster_size):
         subprocess.run(["docker", "stop", f"server-{i}"])
 
 
-def run_experiment_pipeline(cluster_size: int, workload_cmd: str):
-    _build_image()
+def _pipeline(
+    name: str,
+    run: int,
+    experiment_type: ExperimentType,
+    cluster_size: int,
+    workload_cmd: str,
+):
+    image_tag = _build_image(experiment_type)
     _create_network()
-    _start_nodes(cluster_size)
-    _init_cluster()
-    _run_experiment(workload_cmd)
+    _start_nodes(name, image_tag, cluster_size)
+    _init_cluster(image_tag)
+    _run_experiment(name, run, experiment_type, image_tag, workload_cmd)
     _stop_nodes(cluster_size)
+
+
+# TODO: Maybe add cooldowns here
+def run(name: str, sample_size: int, cluster_size: int, workload_cmd: str):
+    for i in range(1, sample_size + 1):
+        _pipeline(name, i, ExperimentType.BASELINE, cluster_size, workload_cmd)
+        _pipeline(name, i, ExperimentType.THESIS, cluster_size, workload_cmd)

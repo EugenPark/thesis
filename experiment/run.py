@@ -14,17 +14,24 @@ class Workload(Enum):
     E = "E"
     F = "F"
 
-
-@app.command()
-def ycsb(cluster_size: int, duration: str, workload: Workload):
-    workload_cmd = f"ycsb --duration={duration} --workload={workload}"
-    experiment.run_experiment_pipeline(cluster_size, workload_cmd)
+    def __str__(self):
+        return self.value
 
 
 @app.command()
-def tpcc(cluster_size: int, duration: str, warehouses: int):
+def ycsb(
+    name: str, sample_size: int, cluster_size: int, duration: str, workload: Workload
+):
+    workload_cmd = f"ycsb --duration={duration} --workload={str(workload)}"
+    experiment.run(name, sample_size, cluster_size, workload_cmd)
+
+
+@app.command()
+def tpcc(
+    name: str, sample_size: int, cluster_size: int, duration: str, warehouses: int
+):
     workload_cmd = f"tpcc --duration={duration} --warehouses={warehouses}"
-    experiment.run_experiment_pipeline(cluster_size, workload_cmd)
+    experiment.run(name, sample_size, cluster_size, workload_cmd)
 
 
 if __name__ == "__main__":

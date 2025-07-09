@@ -1,12 +1,18 @@
 import typer
-import build
+import build as b
 import run
 
 
 app = typer.Typer()
-
-app.add_typer(build.app, name="build")
 app.add_typer(run.app, name="run")
+
+
+# NOTE: If the linked libraries are outdated and need to be recopied copy
+# libresolv_wrapper.so into ../cockroach/artifacts directory
+@app.command()
+def build():
+    b.build_container()
+    b.run_container()
 
 
 if __name__ == "__main__":
