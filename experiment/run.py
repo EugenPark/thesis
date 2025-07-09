@@ -107,6 +107,10 @@ def init_cluster():
 
 
 def run_experiment():
+    local_output_dir = "./results/data"
+    os.makedirs(local_output_dir, exist_ok=True)
+    remote_output_dir = "/tmp/data"
+
     # init workload
     subprocess.run(
         [
@@ -126,6 +130,17 @@ def run_experiment():
     )
 
     # run workload
+    cmd = (
+        f"mkdir -p {remote_output_dir} "
+        f"&& ./cockroach workload run ycsb "
+        f"--duration=5m "
+        f"--workload=A "
+        f"--histograms={remote_output_dir}/hdrhistograms.json "
+        f"--display-format incremental-json "
+        f"postgresql://root@server-1:26257?sslmode=disable "
+        f"> {remote_output_dir}/client.txt"
+    )
+
     subprocess.run(
         [
             "docker",
@@ -133,13 +148,12 @@ def run_experiment():
             "--rm",
             "--network",
             NETWORK,
+            "-v",
+            f"{local_output_dir}:{remote_output_dir}",
             IMAGE_TAG,
-            "./cockroach",
-            "workload",
-            "run",
-            "ycsb",
-            "--duration=1m",
-            "postgresql://root@server-1:26257?sslmode=disable",
+            "bash",
+            "-c",
+            cmd,
         ],
         check=True,
     )
