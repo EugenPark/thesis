@@ -1,17 +1,11 @@
 import os
+import time
 import subprocess
-from enum import Enum
+from .analysis import run as run_analysis
+from .common import ExperimentType
 
 
 NETWORK = "crdb-net"
-
-
-class ExperimentType(Enum):
-    BASELINE = "baseline"
-    THESIS = "thesis"
-
-    def __str__(self):
-        return self.value
 
 
 def _build_image(experiment_type: ExperimentType) -> str:
@@ -193,6 +187,11 @@ def _pipeline(
 
 # TODO: Maybe add cooldowns here
 def run(name: str, sample_size: int, cluster_size: int, workload_cmd: str):
+    time.sleep(1)
     for i in range(1, sample_size + 1):
         _pipeline(name, i, ExperimentType.BASELINE, cluster_size, workload_cmd)
         _pipeline(name, i, ExperimentType.THESIS, cluster_size, workload_cmd)
+        # Cooldown
+        time.sleep(30)
+
+    run_analysis(name, sample_size)
