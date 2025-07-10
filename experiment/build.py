@@ -8,7 +8,15 @@ def build_container():
     dockerfile_path = "./../build/crdb/dockerfile"
     context_path = "./.."
 
-    cmd = ["docker", "build", "-f", dockerfile_path, "-t", IMAGE_TAG, context_path]
+    cmd = [
+        "docker",
+        "build",
+        "-f",
+        dockerfile_path,
+        "-t",
+        IMAGE_TAG,
+        context_path,
+    ]
 
     subprocess.run(
         cmd,

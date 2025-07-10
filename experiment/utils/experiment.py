@@ -1,4 +1,5 @@
 import os
+import random
 import time
 import subprocess
 from .analysis import run as run_analysis
@@ -112,9 +113,14 @@ def _run_experiment(
     run: int,
     experiment_type: ExperimentType,
     image_tag: str,
-    workload_cmd: str,
+    workload: str,
+    duration: int,
+    workload_args: str,
+    seed: int,
 ):
-    local_output_dir = f"./runs/{name}/results/data/run-{run}-{str(experiment_type)}"
+    local_output_dir = (
+        f"./runs/{name}/results/data/run-{run}-{str(experiment_type)}"
+    )
     os.makedirs(local_output_dir, exist_ok=True)
     remote_output_dir = "/tmp/data"
 
@@ -130,7 +136,8 @@ def _run_experiment(
             "./cockroach",
             "workload",
             "init",
-            "ycsb",
+            workload,
+            workload_args,
             "postgresql://root@server-1:26257?sslmode=disable",
         ],
         check=True,
@@ -140,9 +147,12 @@ def _run_experiment(
     cmd = (
         f"mkdir -p {remote_output_dir} "
         "&& ./cockroach workload run "
-        f"{workload_cmd} "
+        f"{workload} "
+        f"{workload_args} "
+        f"--duration={duration} "
+        f"--seed={seed} "
         f"--histograms={remote_output_dir}/hdrhistograms.json "
-        f"--display-format incremental-json "
+        f"--display-format=incremental-json "
         f"postgresql://root@server-1:26257?sslmode=disable "
         f"> {remote_output_dir}/client.txt"
     )
@@ -175,22 +185,60 @@ def _pipeline(
     run: int,
     experiment_type: ExperimentType,
     cluster_size: int,
-    workload_cmd: str,
+    workload: str,
+    duration: int,
+    workload_args: str,
+    seed: int,
 ):
     image_tag = _build_image(experiment_type)
     _create_network()
     _start_nodes(name, image_tag, cluster_size)
     _init_cluster(image_tag)
-    _run_experiment(name, run, experiment_type, image_tag, workload_cmd)
+    _run_experiment(
+        name,
+        run,
+        experiment_type,
+        image_tag,
+        workload,
+        duration,
+        workload_args,
+        seed,
+    )
     _stop_nodes(cluster_size)
 
 
 # TODO: Maybe add cooldowns here
-def run(name: str, sample_size: int, cluster_size: int, workload_cmd: str):
+def run(
+    name: str,
+    sample_size: int,
+    cluster_size: int,
+    workload: str,
+    duration: int,
+    workload_args: str,
+):
     time.sleep(1)
     for i in range(1, sample_size + 1):
-        _pipeline(name, i, ExperimentType.BASELINE, cluster_size, workload_cmd)
-        _pipeline(name, i, ExperimentType.THESIS, cluster_size, workload_cmd)
+        seed = random.randint(1, 2**31 - 1)
+        _pipeline(
+            name,
+            i,
+            ExperimentType.BASELINE,
+            cluster_size,
+            workload,
+            duration,
+            workload_args,
+            seed,
+        )
+        _pipeline(
+            name,
+            i,
+            ExperimentType.THESIS,
+            cluster_size,
+            workload,
+            duration,
+            workload_args,
+            seed,
+        )
         # Cooldown
         time.sleep(30)
 

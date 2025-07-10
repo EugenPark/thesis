@@ -25,7 +25,8 @@ def _load_data(name: str, run: int, exp_type: ExperimentType) -> pd.DataFrame:
     df = pd.DataFrame(data)
     df["experiment_type"] = str(exp_type)
 
-    # NOTE: We only return the last rows of each operation as the data contains cumulative results
+    # NOTE: We only return the last rows of each operation as the data contains
+    # cumulative results
     return df.groupby("type", group_keys=False).tail(1)
 
 
@@ -34,7 +35,9 @@ def _concat_dfs(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     return pd.concat(dfs, axis=0, ignore_index=True)
 
 
-def _get_data(name: str, sample_size: int, exp_type: ExperimentType) -> pd.DataFrame:
+def _get_data(
+    name: str, sample_size: int, exp_type: ExperimentType
+) -> pd.DataFrame:
     """Collect DataFrames for each run of a given experiment type."""
     all_runs = []
 
@@ -47,12 +50,16 @@ def _get_data(name: str, sample_size: int, exp_type: ExperimentType) -> pd.DataF
     return merged_df
 
 
-def _draw_boxplot(output_dir: str, df: pd.DataFrame, metric_col: str, title=None):
+def _draw_boxplot(
+    output_dir: str, df: pd.DataFrame, metric_col: str, title=None
+):
     """
-    Create a boxplot for the specified latency metric across experiment types and operations.
+    Create a boxplot for the specified latency metric across experiment types
+    and operations.
 
     Parameters:
-    - df: pandas DataFrame containing at least ['type', 'experiment_type', metric_col]
+    - df: pandas DataFrame containing at least ['type', 'experiment_type',
+                                                metric_col]
     - metric_col: string, the column to plot (e.g., 'p50l', 'p95l', 'p99l')
     - title: optional string to set as the plot title
     """
@@ -64,7 +71,9 @@ def _draw_boxplot(output_dir: str, df: pd.DataFrame, metric_col: str, title=None
 
     # Create plot
     plt.figure(figsize=(10, 6))
-    sns.boxplot(data=df, x="type", y=metric_col, hue="experiment_type", palette="Set2")
+    sns.boxplot(
+        data=df, x="type", y=metric_col, hue="experiment_type", palette="Set2"
+    )
 
     # Titles and labels
     plt.title(title or f"{metric_col} by Operation and Experiment Type")
@@ -77,7 +86,8 @@ def _draw_boxplot(output_dir: str, df: pd.DataFrame, metric_col: str, title=None
 
 def _compute_boxplot(output_dir: str, df: pd.DataFrame, metric_col: str):
     """
-    Returns summary statistics (min, Q1, median, Q3, max) grouped by operation and experiment.
+    Returns summary statistics (min, Q1, median, Q3, max) grouped by operation
+    and experiment.
     """
     df = df.copy()
     df["experiment_type"] = df["experiment_type"].astype(str)
@@ -88,7 +98,9 @@ def _compute_boxplot(output_dir: str, df: pd.DataFrame, metric_col: str):
     )[["min", "25%", "50%", "75%", "max"]]
 
     # Optional: rename columns for clarity
-    summary = summary.rename(columns={"25%": "q1", "50%": "median", "75%": "q3"})
+    summary = summary.rename(
+        columns={"25%": "q1", "50%": "median", "75%": "q3"}
+    )
 
     output_path = f"{output_dir}/{metric_col}.csv"
     # Write summary to file

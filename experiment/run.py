@@ -20,18 +20,32 @@ class Workload(Enum):
 
 @app.command()
 def ycsb(
-    name: str, sample_size: int, cluster_size: int, duration: str, workload: Workload
+    name: str,
+    sample_size: int,
+    cluster_size: int,
+    duration: str,
+    ycsb_workload: Workload,
 ):
-    workload_cmd = f"ycsb --duration={duration} --workload={str(workload)}"
-    experiment.run(name, sample_size, cluster_size, workload_cmd)
+    workload = "ycsb"
+    workload_args = f"--workload={str(ycsb_workload)}"
+    experiment.run(
+        name, sample_size, cluster_size, workload, duration, workload_args
+    )
 
 
 @app.command()
 def tpcc(
-    name: str, sample_size: int, cluster_size: int, duration: str, warehouses: int
+    name: str,
+    sample_size: int,
+    cluster_size: int,
+    duration: str,
+    warehouses: int,
 ):
-    workload_cmd = f"tpcc --duration={duration} --warehouses={warehouses}"
-    experiment.run(name, sample_size, cluster_size, workload_cmd)
+    workload = "tpcc"
+    workload_args = f"--warehouses={warehouses}"
+    experiment.run(
+        name, sample_size, cluster_size, workload, duration, workload_args
+    )
 
 
 if __name__ == "__main__":
