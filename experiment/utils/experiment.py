@@ -163,6 +163,7 @@ def _stop_nodes(cluster_size):
 
 
 def _pipeline(
+    image_tag: str,
     name: str,
     run: int,
     experiment_type: ExperimentType,
@@ -172,7 +173,6 @@ def _pipeline(
     workload_args: str,
     seed: int,
 ):
-    image_tag = _build_image(experiment_type)
     _create_network()
     _start_nodes(name, image_tag, cluster_size)
     _run_experiment(
@@ -196,31 +196,26 @@ def run(
     duration: int,
     workload_args: str,
 ):
+    image_tags = {}
+    for experiment_type in ExperimentType:
+        image_tags[experiment_type] = _build_image(experiment_type)
+
     for i in range(1, sample_size + 1):
         seed = random.randint(1, 2**31 - 1)
-        _pipeline(
-            name,
-            i,
-            ExperimentType.BASELINE,
-            cluster_size,
-            workload,
-            duration,
-            workload_args,
-            seed,
-        )
-        # Cooldown
-        time.sleep(15)
-        _pipeline(
-            name,
-            i,
-            ExperimentType.THESIS,
-            cluster_size,
-            workload,
-            duration,
-            workload_args,
-            seed,
-        )
-        # Cooldown
-        time.sleep(15)
+        for experiment_type in ExperimentType:
+            image_tag = image_tags[experiment_type]
+            _pipeline(
+                image_tag,
+                name,
+                i,
+                experiment_type,
+                cluster_size,
+                workload,
+                duration,
+                workload_args,
+                seed,
+            )
+            # Cooldown
+            time.sleep(15)
 
     run_analysis(name, sample_size)
