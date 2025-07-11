@@ -64,7 +64,6 @@ def _start_nodes(experiment_name: str, image_tag: str, cluster_size: int):
         cmd = [
             "docker",
             "run",
-            "--rm",
             "-d",
             "--name",
             server_name,
@@ -90,24 +89,6 @@ def _start_nodes(experiment_name: str, image_tag: str, cluster_size: int):
         subprocess.run(cmd, check=True)
 
 
-def _init_cluster(image_tag: str):
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--network",
-            NETWORK,
-            image_tag,
-            "./cockroach",
-            "init",
-            "--insecure",
-            "--host=server-1:26257",
-        ],
-        check=True,
-    )
-
-
 def _run_experiment(
     name: str,
     run: int,
@@ -124,31 +105,19 @@ def _run_experiment(
     os.makedirs(local_output_dir, exist_ok=True)
     remote_output_dir = "/tmp/data"
 
-    # init workload
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--network",
-            NETWORK,
-            image_tag,
-            "./cockroach",
-            "workload",
-            "init",
-            workload,
-            workload_args,
-            "postgresql://root@server-1:26257?sslmode=disable",
-        ],
-        check=True,
+    # Init cluster command
+    init_cluster_cmd = "./cockroach init --insecure --host=server-1:26257"
+
+    # Init workload command
+    init_cmd = (
+        f"./cockroach workload init {workload} {workload_args} "
+        f"postgresql://root@server-1:26257?sslmode=disable"
     )
 
-    # run workload
-    cmd = (
+    # Run workload command
+    run_cmd = (
         f"mkdir -p {remote_output_dir} "
-        "&& ./cockroach workload run "
-        f"{workload} "
-        f"{workload_args} "
+        f"&& ./cockroach workload run {workload} {workload_args} "
         f"--duration={duration} "
         f"--seed={seed} "
         f"--histograms={remote_output_dir}/hdrhistograms.json "
@@ -157,11 +126,18 @@ def _run_experiment(
         f"> {remote_output_dir}/client.txt"
     )
 
+    # Combine all into one bash command
+    full_cmd = (
+        f"{init_cluster_cmd} && sleep 5 && {init_cmd} && sleep 5 && {run_cmd}"
+    )
+
+    # Docker run command
     subprocess.run(
         [
             "docker",
             "run",
-            "--rm",
+            "--name",
+            "client-1",
             "--network",
             NETWORK,
             "-v",
@@ -169,15 +145,21 @@ def _run_experiment(
             image_tag,
             "bash",
             "-c",
-            cmd,
+            full_cmd,
         ],
         check=True,
     )
 
 
+def _stop_and_remove_container(name: str):
+    subprocess.run(["docker", "stop", name])
+    subprocess.run(["docker", "rm", name])
+
+
 def _stop_nodes(cluster_size):
     for i in range(1, cluster_size + 1):
-        subprocess.run(["docker", "stop", f"server-{i}"])
+        _stop_and_remove_container(f"server-{i}")
+    _stop_and_remove_container("client-1")
 
 
 def _pipeline(
@@ -193,7 +175,6 @@ def _pipeline(
     image_tag = _build_image(experiment_type)
     _create_network()
     _start_nodes(name, image_tag, cluster_size)
-    _init_cluster(image_tag)
     _run_experiment(
         name,
         run,
@@ -207,7 +188,6 @@ def _pipeline(
     _stop_nodes(cluster_size)
 
 
-# TODO: Maybe add cooldowns here
 def run(
     name: str,
     sample_size: int,
@@ -216,7 +196,6 @@ def run(
     duration: int,
     workload_args: str,
 ):
-    time.sleep(1)
     for i in range(1, sample_size + 1):
         seed = random.randint(1, 2**31 - 1)
         _pipeline(
@@ -229,6 +208,8 @@ def run(
             workload_args,
             seed,
         )
+        # Cooldown
+        time.sleep(15)
         _pipeline(
             name,
             i,
@@ -240,6 +221,6 @@ def run(
             seed,
         )
         # Cooldown
-        time.sleep(30)
+        time.sleep(15)
 
     run_analysis(name, sample_size)
