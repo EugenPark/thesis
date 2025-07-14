@@ -7,3 +7,11 @@ class ExperimentType(Enum):
 
     def __str__(self):
         return self.value
+
+
+class DeploymentType(Enum):
+    LOCAL = "local"
+    REMOTE = "remote"
+
+    def __str__(self):
+        return self.value

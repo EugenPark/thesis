@@ -1,6 +1,10 @@
 import typer
-from utils import experiment
+
+# from utils import experiment
 from enum import Enum
+from utils.common import DeploymentType
+from utils.experiment.runner import ExperimentRunner
+from utils.experiment.models import ExperimentConfig
 
 
 app = typer.Typer()
@@ -20,6 +24,7 @@ class Workload(Enum):
 
 @app.command()
 def ycsb(
+    deployment_type: DeploymentType,
     name: str,
     sample_size: int,
     cluster_size: int,
@@ -28,13 +33,18 @@ def ycsb(
 ):
     workload = "ycsb"
     workload_args = f"--workload={str(ycsb_workload)}"
-    experiment.run(
-        name, sample_size, cluster_size, workload, duration, workload_args
+
+    # TODO: integrate deployment type into experiment config
+    config = ExperimentConfig(
+        name, sample_size, cluster_size, workload, workload_args, duration
     )
+    runner = ExperimentRunner(config)
+    runner.run(deployment_type)
 
 
 @app.command()
 def tpcc(
+    deployment_type: DeploymentType,
     name: str,
     sample_size: int,
     cluster_size: int,
@@ -43,9 +53,12 @@ def tpcc(
 ):
     workload = "tpcc"
     workload_args = f"--warehouses={warehouses}"
-    experiment.run(
-        name, sample_size, cluster_size, workload, duration, workload_args
+
+    config = ExperimentConfig(
+        name, sample_size, cluster_size, workload, workload_args, duration
     )
+    runner = ExperimentRunner(config)
+    runner.run(deployment_type)
 
 
 if __name__ == "__main__":
