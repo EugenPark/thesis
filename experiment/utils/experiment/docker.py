@@ -1,6 +1,6 @@
 import subprocess
 from .models import WorkloadConfig
-from ..common import ExperimentType, SQL_PORT, DASHBOARD_PORT
+from ..common import ExperimentType, EXPERIMENT_DIR, SQL_PORT, DASHBOARD_PORT
 from .config import PROJECT_ID, NETWORK
 
 
@@ -94,7 +94,6 @@ class DockerManager:
         seed: int,
     ):
         image_tag = self.image_tags[experiment_type]
-        remote_output_dir = "/var/experiment/data"
         client_name = "client"
         remote_host = "server-1"
         remote_connection = (
@@ -112,15 +111,15 @@ class DockerManager:
             # Wait for workload initialization
             "&& sleep 5 && "
             # Run workload
-            f"mkdir -p {remote_output_dir} && ./cockroach workload run "
+            f"mkdir -p {EXPERIMENT_DIR} && ./cockroach workload run "
             f"{config.workload} {config.workload_args} "
             f"--duration={config.duration} "
             f"--seed={seed} "
-            f"--histograms={remote_output_dir}/hdrhistograms.json "
+            f"--histograms={EXPERIMENT_DIR}/hdrhistograms.json "
             f"--display-format=incremental-json "
             f"{remote_connection} "
             # Pipe output
-            f"> {remote_output_dir}/client.txt"
+            f"> {EXPERIMENT_DIR}/client.txt"
         )
 
         subprocess.run(
@@ -132,7 +131,7 @@ class DockerManager:
                 "--network",
                 NETWORK,
                 "-v",
-                f"{local_output_dir}:{remote_output_dir}",
+                f"{local_output_dir}:{EXPERIMENT_DIR}",
                 image_tag,
                 "bash",
                 "-c",

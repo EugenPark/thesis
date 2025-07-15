@@ -22,13 +22,15 @@ class ExperimentRunner:
     def run(self):
         match self.config.deployment_type:
             case DeploymentType.LOCAL:
-                print("local")
                 self._run_local()
             case DeploymentType.REMOTE:
                 self._run_remote()
 
     def _run_local(self):
-        self._prepare_local_run()
+        for exp_type in ExperimentType:
+            self.docker.build_image(exp_type)
+
+        self.docker.create_network()
 
         for i in range(1, self.config.sample_size + 1):
             seed = random.randint(1, 2**31 - 1)
@@ -38,16 +40,10 @@ class ExperimentRunner:
 
         run_analysis(self.config.name, self.config.sample_size)
 
-    def _prepare_local_run(self):
-        for exp_type in ExperimentType:
-            self.docker.build_image(exp_type)
-
-        self.docker.create_network()
-
     def _run_single_local(self, run: int, exp_type: ExperimentType, seed: int):
         # Preparation
         join_str = create_join_str(
-            self.config.cluster_size, DeploymentType.LOCAL
+            DeploymentType.LOCAL, self.config.cluster_size
         )
 
         # Cluster
@@ -77,19 +73,36 @@ class ExperimentRunner:
             self.docker.build_image(exp_type)
             self.docker.push_image(exp_type)
 
+        for i in range(1, self.config.sample_size + 1):
+            for exp_type in ExperimentType:
+                self._run_single_remote(exp_type, i)
+
+        run_analysis(self.config.name, self.config.sample_size)
+
+    def _run_single_remote(self, experiment_type: ExperimentType, run: int):
+        # Preparation
         seed = random.randint(1, 2**31 - 1)
         workload_config = self.config.workload_config()
+
+        # Start experiment
         self.terraform.apply(
-            ExperimentType.BASELINE,
+            experiment_type,
             self.config.cluster_size,
             seed,
             workload_config,
         )
+
+        # Wait for experiment to finish
         self.terraform.block_until_experiment_end(
-            ExperimentType.BASELINE, workload_config
+            experiment_type, workload_config
         )
+
+        # Download results
+        self.terraform.download(self.config.name, experiment_type, run)
+
+        # Clean up
         self.terraform.destroy(
-            ExperimentType.BASELINE,
+            experiment_type,
             self.config.cluster_size,
             seed,
             workload_config,

@@ -16,7 +16,7 @@ module "servers" {
   gce_spec        = "e2-standard-4"
   disk_type       = "pd-standard"
   gce_sa_email    = google_service_account.gce_sa.email
-  cmd             = local.server_cmds[count.index]
+  cmd             = var.server_cmds[count.index]
   project_id      = var.project_id
   experiment_type = var.experiment_type
   experiment_dir  = var.experiment_dir
@@ -27,7 +27,7 @@ module "client" {
   name            = "client"
   gce_spec        = "e2-standard-2"
   gce_sa_email    = google_service_account.gce_sa.email
-  cmd             = local.client_cmd
+  cmd             = var.client_cmd
   project_id      = var.project_id
   experiment_type = var.experiment_type
   experiment_dir  = var.experiment_dir

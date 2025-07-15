@@ -1,9 +1,9 @@
 variable "server_cmds" {
-  type = string
+  type = list(list(string))
 }
 
 variable "client_cmd" {
-  type = string
+  type = list(string)
 }
 
 variable "project_id" {
@@ -30,7 +30,3 @@ variable "experiment_type" {
   }
 }
 
-locals {
-  server_cmds = jsondecode(var.server_cmds)
-  client_cmd  = jsondecode(var.client_cmd)
-}
