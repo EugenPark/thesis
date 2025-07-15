@@ -1,7 +1,6 @@
 .python-version
 __pycache__
 
-logs
-results
+experiment/runs/*
 
 *.env

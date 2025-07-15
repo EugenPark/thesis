@@ -1,9 +1,17 @@
 import subprocess
-from .models import ExperimentType
+from .models import WorkloadConfig
+from ..common import ExperimentType
 from .config import PROJECT_ID, NETWORK
+
+SQL_PORT = 26257
+DASHBOARD_PORT = 8080
 
 
 class DockerManager:
+    def __init__(self):
+        self.image_tags = {}
+        self.running_containers = []
+
     def build_image(self, experiment_type: ExperimentType) -> str:
         image_tag = f"crdb-experiment-{str(experiment_type)}"
         cmd = [
@@ -17,10 +25,13 @@ class DockerManager:
             image_tag,
             "..",
         ]
-        subprocess.run(cmd, check=True)
-        return image_tag
 
-    def push_image(self, image_tag: str):
+        subprocess.run(cmd, check=True)
+
+        self.image_tags[experiment_type] = image_tag
+
+    def push_image(self, experiment_type: ExperimentType):
+        image_tag = self.image_tags[experiment_type]
         remote_url = (
             f"us-central1-docker.pkg.dev/{PROJECT_ID}/docker-registry"
             f"/{image_tag}"
@@ -36,6 +47,106 @@ class DockerManager:
             check=False,
         )
 
-    def stop_and_remove(self, name: str):
-        subprocess.run(["docker", "stop", name], check=False)
-        subprocess.run(["docker", "rm", name], check=False)
+    def run_server(
+        self,
+        run: int,
+        server: int,
+        experiment_type: ExperimentType,
+        join_str: str,
+        local_output_dir: str,
+    ):
+        image_tag = self.image_tags[experiment_type]
+        server_name = f"server-{server}"
+        remote_output_dir = "/var/experiment/logs"
+        remote_store = "/app/store"
+        subprocess.run(
+            [
+                "docker",
+                "run",
+                "-d",
+                "--name",
+                server_name,
+                "--network",
+                NETWORK,
+                "-p",
+                f"{SQL_PORT+server}:{SQL_PORT}",
+                "-p",
+                f"{DASHBOARD_PORT+server}:{DASHBOARD_PORT}",
+                "-v",
+                f"{local_output_dir}:{remote_output_dir}",
+                image_tag,
+                "./cockroach",
+                "start",
+                "--insecure",
+                f"--join={join_str}",
+                f"--store={remote_store}",
+                f"--log-dir={remote_output_dir}",
+                f"--listen-addr=0.0.0.0:{SQL_PORT}",
+                f"--advertise-addr=server-{server}:{SQL_PORT}",
+                f"--http-addr=0.0.0.0:{DASHBOARD_PORT}",
+            ],
+            check=True,
+        )
+        self.running_containers.append(server_name)
+
+    def run_client(
+        self,
+        config: WorkloadConfig,
+        local_output_dir: str,
+        experiment_type: ExperimentType,
+        seed: int,
+    ):
+        image_tag = self.image_tags[experiment_type]
+        remote_output_dir = "/var/experiment/data"
+        client_name = "client"
+        remote_host = "server-1"
+        remote_connection = (
+            f"postgresql://root@{remote_host}:{SQL_PORT}?sslmode=disable"
+        )
+
+        full_cmd = (
+            # Init the cluster
+            f"./cockroach init --insecure --host={remote_host}:{SQL_PORT} "
+            # Wait for initialization
+            "&& sleep 5 && "
+            # Init workload
+            "./cockroach workload init "
+            f"{config.workload} {config.workload_args} {remote_connection} "
+            # Wait for workload initialization
+            "&& sleep 5 && "
+            # Run workload
+            f"mkdir -p {remote_output_dir} && ./cockroach workload run "
+            f"{config.workload} {config.workload_args} "
+            f"--duration={config.duration} "
+            f"--seed={seed} "
+            f"--histograms={remote_output_dir}/hdrhistograms.json "
+            f"--display-format=incremental-json "
+            f"{remote_connection} "
+            # Pipe output
+            f"> {remote_output_dir}/client.txt"
+        )
+
+        subprocess.run(
+            [
+                "docker",
+                "run",
+                "--name",
+                client_name,
+                "--network",
+                NETWORK,
+                "-v",
+                f"{local_output_dir}:{remote_output_dir}",
+                image_tag,
+                "bash",
+                "-c",
+                full_cmd,
+            ],
+            check=True,
+        )
+
+        self.running_containers.append(client_name)
+
+    def stop_and_remove_running_containers(self):
+        for name in self.running_containers:
+            subprocess.run(["docker", "stop", name], check=False)
+            subprocess.run(["docker", "rm", name], check=False)

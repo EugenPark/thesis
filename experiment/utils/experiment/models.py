@@ -1,27 +1,23 @@
-from enum import Enum
 from dataclasses import dataclass
+from ..common import DeploymentType
 
 
-class ExperimentType(str, Enum):
-    BASELINE = "baseline"
-    THESIS = "thesis"
-
-    def __str__(self):
-        return self.value
-
-
-class DeploymentType(str, Enum):
-    LOCAL = "local"
-    REMOTE = "remote"
+@dataclass(frozen=True)
+class WorkloadConfig:
+    workload: str
+    workload_args: str
+    duration: int
 
 
-# TODO: add some functions that return a specific parameter range that is
-# needed for both local and remote calls
 @dataclass
 class ExperimentConfig:
     name: str
+    deployment_type: DeploymentType
     sample_size: int
     cluster_size: int
     workload: str
     workload_args: str
     duration: int
+
+    def workload_config(self) -> WorkloadConfig:
+        return WorkloadConfig(self.workload, self.workload_args, self.duration)

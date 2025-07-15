@@ -34,12 +34,17 @@ def ycsb(
     workload = "ycsb"
     workload_args = f"--workload={str(ycsb_workload)}"
 
-    # TODO: integrate deployment type into experiment config
     config = ExperimentConfig(
-        name, sample_size, cluster_size, workload, workload_args, duration
+        name,
+        deployment_type,
+        sample_size,
+        cluster_size,
+        workload,
+        workload_args,
+        duration,
     )
     runner = ExperimentRunner(config)
-    runner.run(deployment_type)
+    runner.run()
 
 
 @app.command()
@@ -55,10 +60,16 @@ def tpcc(
     workload_args = f"--warehouses={warehouses}"
 
     config = ExperimentConfig(
-        name, sample_size, cluster_size, workload, workload_args, duration
+        name,
+        deployment_type,
+        sample_size,
+        cluster_size,
+        workload,
+        workload_args,
+        duration,
     )
     runner = ExperimentRunner(config)
-    runner.run(deployment_type)
+    runner.run()
 
 
 if __name__ == "__main__":

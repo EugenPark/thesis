@@ -3,13 +3,14 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from .common import ExperimentType
+from .common import ExperimentType, get_local_output_dir
 
 
 def _load_data(name: str, run: int, exp_type: ExperimentType) -> pd.DataFrame:
     """Load a newline-delimited JSON file and return a DataFrame."""
 
-    filepath = f"./runs/{name}/results/data/run-{run}-{exp_type}/client.txt"
+    local_output_dir = get_local_output_dir(name, run, exp_type)
+    filepath = f"{local_output_dir}/data/client.txt"
     with open(filepath, "r") as f:
         raw_lines = f.readlines()
 
@@ -123,7 +124,7 @@ def run(name: str, sample_size: int) -> pd.DataFrame:
 
     result = _concat_dfs(dfs)
 
-    output_dir = f"./runs/{name}/results/analysis"
+    output_dir = f"./runs/{name}/results"
     os.makedirs(output_dir, exist_ok=True)
     _iterate_metrics(output_dir, result, _compute_boxplot)
     _iterate_metrics(output_dir, result, _draw_boxplot)

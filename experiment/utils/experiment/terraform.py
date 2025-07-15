@@ -1,25 +1,10 @@
 import subprocess
 import json
 from .config import TF_DIR, PROJECT_ID
-from .models import DeploymentType
+from ..common import DeploymentType
 
 
 class TerraformManager:
-    def _create_join_str(
-        self, cluster_size: int, deployment_type: DeploymentType
-    ) -> str:
-        if deployment_type == DeploymentType.LOCAL:
-            return ",".join(
-                [f"server-{i}:26257" for i in range(1, cluster_size + 1)]
-            )
-        else:
-            return ",".join(
-                [
-                    f"server-{i}.us-central1-a.c.{PROJECT_ID}.internal:26257"
-                    for i in range(1, cluster_size + 1)
-                ]
-            )
-
     def _build_vars(
         self, cluster_size, workload, workload_args, duration, seed
     ) -> dict:
@@ -36,7 +21,10 @@ class TerraformManager:
         )
 
         server_cmds = []
-        join_str = self._create_join_str(cluster_size, DeploymentType.REMOTE)
+        join_str = DeploymentType.create_join_str(
+            cluster_size, DeploymentType.REMOTE
+        )
+
         for i in range(1, cluster_size + 1):
             server_cmds.append(
                 f"./cockroach start --insecure --join={join_str} "
