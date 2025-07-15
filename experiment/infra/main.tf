@@ -9,24 +9,28 @@ resource "google_project_iam_member" "artifact_registry_reader" {
   member  = "serviceAccount:${google_service_account.gce_sa.email}"
 }
 
-# TODO: unify cluster size and the specs and disk types
-module "server" {
-  source              = "./modules/gce"
-  gce_type            = "server"
-  gce_specs           = ["e2-standard-4", "e2-standard-4", "e2-standard-4", "e2-standard-4", "e2-standard-4"]
-  disk_types          = ["pd-standard", "pd-standard", "pd-standard", "pd-standard", "pd-standard"]
-  gce_sa_email        = google_service_account.gce_sa.email
-  experiment_commands = var.server_cmds
-  project_id          = var.project_id
-  cluster_size        = var.cluster_size
+module "servers" {
+  count           = var.cluster_size
+  source          = "./modules/gce"
+  name            = "server-${count.index + 1}"
+  gce_spec        = "e2-standard-4"
+  disk_type       = "pd-standard"
+  gce_sa_email    = google_service_account.gce_sa.email
+  cmd             = local.server_cmds[count.index]
+  project_id      = var.project_id
+  experiment_type = var.experiment_type
+  experiment_dir  = var.experiment_dir
 }
 
 module "client" {
-  source              = "./modules/gce"
-  gce_type            = "client"
-  gce_specs           = ["e2-standard-2"]
-  gce_sa_email        = google_service_account.gce_sa.email
-  experiment_commands = [var.client_cmd]
-  project_id          = var.project_id
-  cluster_size        = 1
+  source          = "./modules/gce"
+  name            = "client"
+  gce_spec        = "e2-standard-2"
+  gce_sa_email    = google_service_account.gce_sa.email
+  cmd             = local.client_cmd
+  project_id      = var.project_id
+  experiment_type = var.experiment_type
+  experiment_dir  = var.experiment_dir
+
+  depends_on = [module.servers]
 }

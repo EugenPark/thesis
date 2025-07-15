@@ -1,22 +1,19 @@
 module "container" {
-  count   = var.cluster_size
   source  = "terraform-google-modules/container-vm/google"
   version = "~> 3.0"
 
-  cos_image_name = "cos-stable-77-12371-89-0"
-
   container = {
     image   = "us-central1-docker.pkg.dev/${var.project_id}/docker-registry/crdb-experiment-${var.experiment_type}"
-    command = var.experiment_commands[count.index]
+    command = var.cmd
 
     volumeMounts = [
       {
-        mountPath = "/var/experiment/data"
+        mountPath = "${var.experiment_dir}/data"
         name      = "data"
         readOnly  = false
       },
       {
-        mountPath = "/var/experiment/logs"
+        mountPath = "${var.experiment_dir}/logs"
         name      = "logs"
         readOnly  = false
       }
@@ -27,14 +24,14 @@ module "container" {
     {
       name = "data"
       hostPath = {
-        path = "/var/experiment/data"
+        path = "${var.experiment_dir}/data"
         type = "DirectoryOrCreate"
       }
     },
     {
       name = "logs"
       hostPath = {
-        path = "/var/experiment/logs"
+        path = "${var.experiment_dir}/logs"
         type = "DirectoryOrCreate"
       }
     }
@@ -44,9 +41,8 @@ module "container" {
 }
 
 resource "google_compute_instance" "gce" {
-  count                     = var.cluster_size
-  name                      = "${var.gce_type}-${count.index + 1}"
-  machine_type              = var.gce_specs[count.index]
+  name                      = var.name
+  machine_type              = var.gce_spec
   zone                      = "us-central1-a"
   allow_stopping_for_update = true
 
@@ -54,7 +50,7 @@ resource "google_compute_instance" "gce" {
     initialize_params {
       image = "projects/cos-cloud/global/images/family/cos-stable"
       size  = 10
-      type  = var.disk_types[count.index]
+      type  = var.disk_type
     }
   }
 
@@ -65,7 +61,7 @@ resource "google_compute_instance" "gce" {
 
   metadata = {
     ssh-keys                  = "epark:${file("~/.ssh/google_compute_engine.pub")}"
-    gce-container-declaration = module.container[count.index].metadata_value
+    gce-container-declaration = module.container.metadata_value
   }
 
   service_account {

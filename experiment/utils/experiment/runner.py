@@ -5,7 +5,12 @@ from .models import ExperimentConfig
 from .docker import DockerManager
 from .terraform import TerraformManager
 from ..analysis import run as run_analysis
-from ..common import get_local_output_dir, DeploymentType, ExperimentType
+from ..common import (
+    get_local_output_dir,
+    create_join_str,
+    DeploymentType,
+    ExperimentType,
+)
 
 
 class ExperimentRunner:
@@ -41,7 +46,7 @@ class ExperimentRunner:
 
     def _run_single_local(self, run: int, exp_type: ExperimentType, seed: int):
         # Preparation
-        join_str = DeploymentType.create_join_str(
+        join_str = create_join_str(
             self.config.cluster_size, DeploymentType.LOCAL
         )
 
@@ -73,18 +78,19 @@ class ExperimentRunner:
             self.docker.push_image(exp_type)
 
         seed = random.randint(1, 2**31 - 1)
+        workload_config = self.config.workload_config()
         self.terraform.apply(
+            ExperimentType.BASELINE,
             self.config.cluster_size,
-            self.config.workload,
-            self.config.workload_args,
-            self.config.duration,
             seed,
+            workload_config,
         )
-        time.sleep(60)
+        self.terraform.block_until_experiment_end(
+            ExperimentType.BASELINE, workload_config
+        )
         self.terraform.destroy(
+            ExperimentType.BASELINE,
             self.config.cluster_size,
-            self.config.workload,
-            self.config.workload_args,
-            self.config.duration,
             seed,
+            workload_config,
         )

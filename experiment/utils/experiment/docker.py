@@ -1,10 +1,7 @@
 import subprocess
 from .models import WorkloadConfig
-from ..common import ExperimentType
+from ..common import ExperimentType, SQL_PORT, DASHBOARD_PORT
 from .config import PROJECT_ID, NETWORK
-
-SQL_PORT = 26257
-DASHBOARD_PORT = 8080
 
 
 class DockerManager:
