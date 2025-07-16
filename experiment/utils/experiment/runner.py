@@ -8,6 +8,7 @@ from ..analysis import run as run_analysis
 from ..common import (
     get_local_output_dir,
     create_join_str,
+    runInParallel,
     DeploymentType,
     ExperimentType,
 )
@@ -69,41 +70,58 @@ class ExperimentRunner:
         self.docker.stop_and_remove_running_containers()
 
     def _run_remote(self):
+        workload_config = self.config.workload_config()
+        experiment_type_per_cluster = []
+        seed_per_cluster = []
+        run_per_experiment_type = []
+
         for exp_type in ExperimentType:
             self.docker.build_image(exp_type)
             self.docker.push_image(exp_type)
 
-        for i in range(1, self.config.sample_size + 1):
+        for i in range(self.config.sample_size):
             for exp_type in ExperimentType:
-                self._run_single_remote(exp_type, i)
-
-        run_analysis(self.config.name, self.config.sample_size)
-
-    def _run_single_remote(self, experiment_type: ExperimentType, run: int):
-        # Preparation
-        seed = random.randint(1, 2**31 - 1)
-        workload_config = self.config.workload_config()
+                experiment_type_per_cluster.append(exp_type)
+                seed = random.randint(1, 2**31 - 1)
+                seed_per_cluster.append(seed)
 
         # Start experiment
         self.terraform.apply(
-            experiment_type,
+            experiment_type_per_cluster,
             self.config.cluster_size,
-            seed,
+            seed_per_cluster,
             workload_config,
         )
 
-        # Wait for experiment to finish
-        self.terraform.block_until_experiment_end(
-            experiment_type, workload_config
-        )
+        fns = []
+        for i in range(len(experiment_type_per_cluster)):
 
-        # Download results
-        self.terraform.download(self.config.name, experiment_type, run)
+            def wait_and_download():
+                run = run_per_experiment_type[i]
+                experiment_type = experiment_type_per_cluster[i]
+                self.terraform.block_until_experiment_end(
+                    run,
+                    experiment_type,
+                    workload_config.duration,
+                )
+
+                self.terraform.download(
+                    self.config.name,
+                    experiment_type,
+                    run,
+                )
+
+            fns.append(wait_and_download)
+
+        runInParallel(*fns)
 
         # Clean up
         self.terraform.destroy(
-            experiment_type,
+            experiment_type_per_cluster,
             self.config.cluster_size,
-            seed,
+            seed_per_cluster,
             workload_config,
         )
+
+        # Analyze
+        run_analysis(self.config.name, self.config.sample_size)

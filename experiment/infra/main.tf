@@ -9,28 +9,21 @@ resource "google_project_iam_member" "artifact_registry_reader" {
   member  = "serviceAccount:${google_service_account.gce_sa.email}"
 }
 
-module "servers" {
-  count           = var.cluster_size
-  source          = "./modules/gce"
-  name            = "server-${count.index + 1}"
-  gce_spec        = "e2-standard-4"
-  disk_type       = "pd-standard"
-  gce_sa_email    = google_service_account.gce_sa.email
-  cmd             = var.server_cmds[count.index]
-  project_id      = var.project_id
-  experiment_type = var.experiment_type
-  experiment_dir  = var.experiment_dir
+module "cluster" {
+  count = length(var.experiment_type_per_cluster)
+
+  source = "./modules/cluster"
+
+  run = local.group_ids[count.index]
+
+  gce_sa_email = google_service_account.gce_sa.email
+
+  cluster_size   = var.cluster_size
+  project_id     = var.project_id
+  experiment_dir = var.experiment_dir
+
+  server_cmds     = var.server_cmds_per_cluster[count.index]
+  client_cmd      = var.client_cmd_per_cluster[count.index]
+  experiment_type = var.experiment_type_per_cluster[count.index]
 }
 
-module "client" {
-  source          = "./modules/gce"
-  name            = "client"
-  gce_spec        = "e2-standard-2"
-  gce_sa_email    = google_service_account.gce_sa.email
-  cmd             = var.client_cmd
-  project_id      = var.project_id
-  experiment_type = var.experiment_type
-  experiment_dir  = var.experiment_dir
-
-  depends_on = [module.servers]
-}

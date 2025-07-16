@@ -1,9 +1,9 @@
-variable "server_cmds" {
-  type = list(list(string))
+variable "server_cmds_per_cluster" {
+  type = list(list(list(string)))
 }
 
-variable "client_cmd" {
-  type = list(string)
+variable "client_cmd_per_cluster" {
+  type = list(list(string))
 }
 
 variable "project_id" {
@@ -21,12 +21,19 @@ variable "experiment_dir" {
   description = "The directory where the experiment shall be saved to"
 }
 
-variable "experiment_type" {
-  type        = string
+variable "experiment_type_per_cluster" {
+  type        = list(string)
   description = "The type of experiment. Should be either baseline or thesis"
-  validation {
-    condition     = contains(["baseline", "thesis"], var.experiment_type)
-    error_message = "The experiment_type must be one of [baseline, thesis]"
-  }
 }
 
+locals {
+  unique_values = distinct(var.experiment_type_per_cluster)
+  chunk_size    = length(local.unique_values)
+  total_items   = length(var.experiment_type_per_cluster)
+
+  # Generate indices [0, 1, 2, ..., total_items - 1]
+  indices = range(local.total_items)
+
+  # Chunked group ids: floor(i / chunk_size) + 1
+  group_ids = [for i in local.indices : floor(i / local.chunk_size) + 1]
+}

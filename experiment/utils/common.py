@@ -31,7 +31,12 @@ def create_remote_host(name: str):
     return f"{name}.us-central1-a.c.{PROJECT_ID}.internal"
 
 
-def create_join_str(deployment_type: DeploymentType, cluster_size: int) -> str:
+def create_join_str(
+    deployment_type: DeploymentType,
+    cluster_size: int,
+    run=None,
+    experiment_type=None,
+) -> str:
     match deployment_type:
         case DeploymentType.LOCAL:
             return ",".join(
@@ -40,7 +45,7 @@ def create_join_str(deployment_type: DeploymentType, cluster_size: int) -> str:
         case DeploymentType.REMOTE:
             return ",".join(
                 [
-                    f"{create_remote_host(f'server-{i}')}:{SQL_PORT}"
+                    f"{create_remote_host(f'experiment-{run}-{str(experiment_type)}-server-{i}')}:{SQL_PORT}"  # noqa: E501
                     for i in range(1, cluster_size + 1)
                 ]
             )
