@@ -6,6 +6,7 @@ import seaborn as sns
 from .common import ExperimentType, get_local_output_dir
 
 
+# TODO: make this a common function reusable in plotting warmup
 def _load_data(name: str, run: int, exp_type: ExperimentType) -> pd.DataFrame:
     """Load a newline-delimited JSON file and return a DataFrame."""
 

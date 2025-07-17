@@ -59,10 +59,7 @@ class ExperimentRunner:
         output_dir = f"{local_output_dir}/data"
         os.makedirs(output_dir, exist_ok=True)
         self.docker.run_client(
-            self.config.workload_config(),
-            output_dir,
-            exp_type,
-            seed,
+            self.config.workload_config(), output_dir, exp_type, seed
         )
 
         # Clean up

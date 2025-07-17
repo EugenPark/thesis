@@ -33,6 +33,7 @@ def ycsb(
 ):
     workload = "ycsb"
     workload_args = f"--workload={str(ycsb_workload)}"
+    ramp = "400s"
 
     config = ExperimentConfig(
         name,
@@ -42,6 +43,7 @@ def ycsb(
         workload,
         workload_args,
         duration,
+        ramp,
     )
     runner = ExperimentRunner(config)
     runner.run()
@@ -58,6 +60,7 @@ def tpcc(
 ):
     workload = "tpcc"
     workload_args = f"--warehouses={warehouses}"
+    ramp = "180s"
 
     config = ExperimentConfig(
         name,
@@ -67,6 +70,7 @@ def tpcc(
         workload,
         workload_args,
         duration,
+        ramp,
     )
     runner = ExperimentRunner(config)
     runner.run()

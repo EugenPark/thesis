@@ -114,6 +114,7 @@ class DockerManager:
             f"mkdir -p {EXPERIMENT_DIR} && ./cockroach workload run "
             f"{config.workload} {config.workload_args} "
             f"--duration={config.duration} "
+            f"--ramp={config.ramp} "
             f"--seed={seed} "
             f"--histograms={EXPERIMENT_DIR}/hdrhistograms.json "
             f"--display-format=incremental-json "

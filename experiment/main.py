@@ -1,5 +1,6 @@
 import typer
 import build as b
+import warmup as w
 import run
 
 
@@ -13,6 +14,12 @@ app.add_typer(run.app, name="run")
 def build():
     b.build_container()
     b.run_container()
+
+
+@app.command()
+def warmup():
+    w.compare_ycsb_warmup()
+    w.compare_tpcc_warmup()
 
 
 if __name__ == "__main__":
