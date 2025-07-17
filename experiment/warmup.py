@@ -36,6 +36,7 @@ def _plot_throughput_comparison(
     group_by_type=False,
 ):
     sns.set(style="whitegrid", context="paper")
+    sns.set_context("paper", font_scale=2.0)
     fig, axes = plt.subplots(1, 2, figsize=(16, 9), sharey=True)
 
     def _plot(ax, df, title, vline):

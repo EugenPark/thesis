@@ -4,6 +4,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from .common import ExperimentType, get_local_output_dir
+from scipy.stats import shapiro, ttest_ind, mannwhitneyu
+import numpy as np
+
+DIRECTIONS = {
+    "avgl": "greater",
+    "p50l": "less",
+    "p95l": "less",
+    "p99l": "less",
+    "maxl": "less",
+}
 
 
 # TODO: make this a common function reusable in plotting warmup
@@ -115,6 +125,69 @@ def _iterate_metrics(output_dir: str, df: pd.DataFrame, fn):
         fn(output_dir, df, metric)
 
 
+def _cohen_d(x, y):
+    nx, ny = len(x), len(y)
+    pooled_std = np.sqrt(
+        ((nx - 1) * np.std(x, ddof=1) ** 2 + (ny - 1) * np.std(y, ddof=1) ** 2)
+        / (nx + ny - 2)
+    )
+    return (np.mean(y) - np.mean(x)) / pooled_std
+
+
+def _compare_groups(x, y, alternative="greater"):
+    # Normality test
+    _, p_x = shapiro(x)
+    _, p_y = shapiro(y)
+
+    use_t = p_x > 0.05 and p_y > 0.05  # assume normal if p > 0.05
+
+    if use_t:
+        stat, p_val = ttest_ind(y, x, alternative=alternative)
+        test_used = "t-test"
+    else:
+        stat, p_val = mannwhitneyu(y, x, alternative=alternative)
+        test_used = "Mann-Whitney U"
+
+    d = _cohen_d(x, y)
+    return test_used, p_val, d
+
+
+def _analyze(output_dir, df, metric):
+    results = []
+
+    for op_type in df["type"].unique():
+        df_op = df[df["type"] == op_type]
+
+        baseline = df_op[df_op["experiment_type"] == "baseline"][
+            metric
+        ].dropna()
+        thesis = df_op[df_op["experiment_type"] == "thesis"][metric].dropna()
+
+        if len(baseline) < 2 or len(thesis) < 2:
+            continue
+
+        direction = DIRECTIONS.get(metric, "two-sided")
+        test, p_val, d = _compare_groups(baseline, thesis, direction)
+
+        results.append(
+            {
+                "operation": op_type,
+                "metric": metric,
+                "test": test,
+                "p_value": round(p_val, 5),
+                "cohens_d": round(d, 3),
+                "baseline_mean": round(baseline.mean(), 3),
+                "thesis_mean": round(thesis.mean(), 3),
+                "n_baseline": len(baseline),
+                "n_thesis": len(thesis),
+            }
+        )
+
+    output_file = f"{output_dir}/test-{metric}.csv"
+    pd.DataFrame(results).to_csv(output_file, index=False)
+    print(f"Results written to: {output_file}")
+
+
 def run(name: str, sample_size: int) -> pd.DataFrame:
     """Handle data for both baseline and thesis experiment types."""
 
@@ -127,6 +200,7 @@ def run(name: str, sample_size: int) -> pd.DataFrame:
 
     output_dir = f"./runs/{name}/results"
     os.makedirs(output_dir, exist_ok=True)
+    _iterate_metrics(output_dir, result, _analyze)
     _iterate_metrics(output_dir, result, _compute_boxplot)
     _iterate_metrics(output_dir, result, _draw_boxplot)
 
