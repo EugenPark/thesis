@@ -2,8 +2,7 @@ FROM ubuntu:22.04
 
 WORKDIR /app
 
-RUN mkdir -p /var/experiment/logs
-RUN mkdir -p /var/experiment/data
+RUN mkdir -p /var/experiment
 
 ARG BIN_NAME=cockroach
 

@@ -2,7 +2,7 @@ import subprocess
 import os
 import time
 import json
-from .config import TF_DIR, PROJECT_ID
+from .config import TF_DIR, PROJECT_ID, REMOTE_DIR
 from ..common import (
     DeploymentType,
     ExperimentType,
@@ -35,20 +35,21 @@ class TerraformManager:
             "&& sleep 5 && "
             # Init workload
             "./cockroach workload init "
-            f"{config.workload} {config.workload_args} {remote_connection} "
+            f"{config.workload} {config.workload_args} {remote_connection} && "
             # Wait for workload initialization
-            "&& sleep 5 && "
+            # f"mkdir -p {EXPERIMENT_DIR} && "
+            f"sleep 5 && "
             # Run workload
             f"./cockroach workload run "
             f"{config.workload} {config.workload_args} "
             f"--duration={config.duration} "
             f"--ramp={config.ramp} "
             f"--seed={seed} "
-            f"--histograms={EXPERIMENT_DIR}/data/hdrhistograms.json "
+            f"--histograms={EXPERIMENT_DIR}/hdrhistograms.json "
             f"--display-format=incremental-json "
             f"{remote_connection} "
             # Pipe output
-            f"> {EXPERIMENT_DIR}/data/client.txt"
+            f"> {EXPERIMENT_DIR}/client.txt"
         )
 
         client_cmd = json.dumps(["sh", "-c", client_cmd])
@@ -65,7 +66,7 @@ class TerraformManager:
                 "--insecure",
                 f"--join={join_str}",
                 "--store=/app/store",
-                f"--log-dir={EXPERIMENT_DIR}/logs",
+                f"--log-dir={EXPERIMENT_DIR}",
                 f"--listen-addr=0.0.0.0:{SQL_PORT}",
                 f"--advertise-addr={remote_host}:{SQL_PORT}",
                 f"--http-addr=0.0.0.0:{DASHBOARD_PORT}",
@@ -81,6 +82,7 @@ class TerraformManager:
             "cluster_size": cluster_size,
             "experiment_dir": EXPERIMENT_DIR,
             "experiment_type": str(experiment_type),
+            "remote_dir": REMOTE_DIR,
         }
 
     def apply(
@@ -109,14 +111,18 @@ class TerraformManager:
         ]
         subprocess.run(cmd, cwd=TF_DIR, check=True)
 
-    def block_until_experiment_end(
-        self, experiment_type: ExperimentType, config: WorkloadConfig
+    def wait_for_experiment_state(
+        self,
+        experiment_type: ExperimentType,
+        config: WorkloadConfig,
+        target_state: str,
     ):
         duration = (
             int(config.duration[:-1])
             * {"s": 1, "m": 60, "h": 3600, "d": 86400}[config.duration[-1]]
         )
-        time.sleep(duration)
+        retries = 20
+        wait = 30
 
         probe_server = "client"
         zone = "us-central1-a"
@@ -124,13 +130,17 @@ class TerraformManager:
             f"us-central1-docker.pkg.dev/{PROJECT_ID}/"
             f"docker-registry/crdb-experiment-{str(experiment_type)}"
         )
-        probe = (
-            f"docker ps -a --filter 'ancestor={image_name}' --filter "
-            "'status=exited' -q"
-        )
 
-        # NOTE: In worst case we just tear down after 30 seconds
-        for i in range(30):
+        # Command to check if the container is running or exited
+        if target_state == "start":
+            probe_cmd = f"docker ps --filter 'ancestor={image_name}' -q"
+        elif target_state == "end":
+            time.sleep(duration)
+            probe_cmd = f"docker ps -a --filter 'ancestor={image_name}' --filter 'status=exited' -q"
+        else:
+            raise ValueError("target_state must be 'start' or 'end'")
+
+        for i in range(retries):
             cmd = [
                 "gcloud",
                 "compute",
@@ -138,41 +148,60 @@ class TerraformManager:
                 probe_server,
                 f"--zone={zone}",
                 "--command",
-                probe,
+                probe_cmd,
                 "--quiet",
             ]
             result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.stdout.strip() != "":
-                break
 
-            time.sleep(1)
+            if result.stdout.strip() != "":
+                print(f"✅ Experiment reached state: {target_state}")
+                return
+
+            time.sleep(wait)
 
     def download(self, name: str, experiment_type: ExperimentType, run: int):
         target_node = "client"
+        zone = "us-central1-a"
+        remote_files = ["client.txt", "hdrhistograms.json"]
+
         local_dir = (
             f"./runs/{name}/run-{run}/experiment-{str(experiment_type)}/data"
         )
         os.makedirs(local_dir, exist_ok=True)
-        zone = "us-central1-a"
 
-        # Gather overall output
-        cmd = [
-            "gcloud",
-            "compute",
-            "scp",
-            f"--zone={zone}",
-            f"{target_node}:{EXPERIMENT_DIR}/data/client.txt",
-            f"{local_dir}/client.txt",
-        ]
-        subprocess.run(cmd, check=False)
+        def try_download(
+            remote_path: str, local_path: str, max_attempts=20, delay=30
+        ):
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    subprocess.run(
+                        [
+                            "gcloud",
+                            "compute",
+                            "scp",
+                            f"--zone={zone}",
+                            f"{target_node}:{remote_path}",
+                            local_path,
+                        ],
+                        check=True,
+                        capture_output=True,
+                    )
+                    print(f"✅ Downloaded {remote_path}")
+                    return
+                except subprocess.CalledProcessError as e:
+                    if b"No such file or directory" in e.stderr:
+                        print(
+                            f"⏳ {remote_path} not ready (attempt {attempt}/{max_attempts}), retrying..."
+                        )
+                        time.sleep(delay)
+                    else:
+                        print(f"❌ Unexpected error: {e.stderr.decode()}")
+                        raise
+            raise TimeoutError(
+                f"File {remote_path} was not found after {max_attempts} attempts."
+            )
 
-        # Gather histograms
-        cmd = [
-            "gcloud",
-            "compute",
-            "scp",
-            f"--zone={zone}",
-            f"{target_node}:{EXPERIMENT_DIR}/data/hdrhistograms.json",
-            f"{local_dir}/hdrhistograms.json",
-        ]
-        subprocess.run(cmd, check=False)
+        for filename in remote_files:
+            local_file = f"{local_dir}/{filename}"
+            remote_file = f"{REMOTE_DIR}/{filename}"
+            try_download(remote_file, str(local_file))

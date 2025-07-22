@@ -89,9 +89,12 @@ class ExperimentRunner:
             workload_config,
         )
 
-        # Wait for experiment to finish
-        self.terraform.block_until_experiment_end(
-            experiment_type, workload_config
+        # Wait for experiment to start and finish
+        self.terraform.wait_for_experiment_state(
+            experiment_type, workload_config, "start"
+        )
+        self.terraform.wait_for_experiment_state(
+            experiment_type, workload_config, "end"
         )
 
         # Download results

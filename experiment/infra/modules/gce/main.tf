@@ -8,13 +8,8 @@ module "container" {
 
     volumeMounts = [
       {
-        mountPath = "${var.experiment_dir}/data"
-        name      = "data"
-        readOnly  = false
-      },
-      {
-        mountPath = "${var.experiment_dir}/logs"
-        name      = "logs"
+        mountPath = var.experiment_dir
+        name      = "experiment"
         readOnly  = false
       }
     ]
@@ -22,16 +17,9 @@ module "container" {
 
   volumes = [
     {
-      name = "data"
+      name = "experiment"
       hostPath = {
-        path = "${var.experiment_dir}/data"
-        type = "DirectoryOrCreate"
-      }
-    },
-    {
-      name = "logs"
-      hostPath = {
-        path = "${var.experiment_dir}/logs"
+        path = var.remote_dir
         type = "DirectoryOrCreate"
       }
     }
@@ -49,7 +37,7 @@ resource "google_compute_instance" "gce" {
   boot_disk {
     initialize_params {
       image = "projects/cos-cloud/global/images/family/cos-stable"
-      size  = 10
+      size  = 30
       type  = var.disk_type
     }
   }

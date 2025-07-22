@@ -20,6 +20,7 @@ module "servers" {
   project_id      = var.project_id
   experiment_type = var.experiment_type
   experiment_dir  = var.experiment_dir
+  remote_dir      = var.remote_dir
 }
 
 module "client" {
@@ -31,6 +32,7 @@ module "client" {
   project_id      = var.project_id
   experiment_type = var.experiment_type
   experiment_dir  = var.experiment_dir
+  remote_dir      = var.remote_dir
 
   depends_on = [module.servers]
 }

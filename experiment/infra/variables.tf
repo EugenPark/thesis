@@ -18,7 +18,7 @@ variable "cluster_size" {
 
 variable "experiment_dir" {
   type        = string
-  description = "The directory where the experiment shall be saved to"
+  description = "The directory where the experiment shall be saved to in the container"
 }
 
 variable "experiment_type" {
@@ -30,3 +30,8 @@ variable "experiment_type" {
   }
 }
 
+
+variable "remote_dir" {
+  type        = string
+  description = "The directory where the experiment is saved to on the machine"
+}

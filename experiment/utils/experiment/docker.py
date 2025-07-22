@@ -54,8 +54,8 @@ class DockerManager:
     ):
         image_tag = self.image_tags[experiment_type]
         server_name = f"server-{server}"
-        remote_output_dir = "/var/experiment/logs"
         remote_store = "/app/store"
+        local_output_dir = f"{local_output_dir}/{server_name}"
         subprocess.run(
             [
                 "docker",
@@ -70,14 +70,14 @@ class DockerManager:
                 "-p",
                 f"{DASHBOARD_PORT+server}:{DASHBOARD_PORT}",
                 "-v",
-                f"{local_output_dir}:{remote_output_dir}",
+                f"{local_output_dir}:{EXPERIMENT_DIR}",
                 image_tag,
                 "./cockroach",
                 "start",
                 "--insecure",
                 f"--join={join_str}",
                 f"--store={remote_store}",
-                f"--log-dir={remote_output_dir}",
+                f"--log-dir={EXPERIMENT_DIR}",
                 f"--listen-addr=0.0.0.0:{SQL_PORT}",
                 f"--advertise-addr=server-{server}:{SQL_PORT}",
                 f"--http-addr=0.0.0.0:{DASHBOARD_PORT}",
@@ -107,11 +107,12 @@ class DockerManager:
             "&& sleep 5 && "
             # Init workload
             "./cockroach workload init "
-            f"{config.workload} {config.workload_args} {remote_connection} "
+            f"{config.workload} {config.workload_args} {remote_connection} && "
             # Wait for workload initialization
-            "&& sleep 5 && "
+            # f"mkdir -p {EXPERIMENT_DIR} && "
+            f"sleep 5 && "
             # Run workload
-            f"mkdir -p {EXPERIMENT_DIR} && ./cockroach workload run "
+            "./cockroach workload run "
             f"{config.workload} {config.workload_args} "
             f"--duration={config.duration} "
             f"--ramp={config.ramp} "
@@ -135,7 +136,7 @@ class DockerManager:
                 f"{local_output_dir}:{EXPERIMENT_DIR}",
                 image_tag,
                 "bash",
-                "-c",
+                "-ec",
                 full_cmd,
             ],
             check=True,

@@ -15,6 +15,25 @@ DIRECTIONS = {
     "maxl": "less",
 }
 
+METRIC_MAPPING = {
+    "avgl": "ops/sec",
+    "p50l": "ms",
+    "p95l": "ms",
+    "p99l": "ms",
+    "maxl": "ms",
+    "Time": "sec",
+}
+
+LABEL_MAPPING = {
+    "avgl": "Average Throughput",
+    "p50l": "Median Latency",
+    "p95l": "95th Percentile Latency",
+    "p99l": "99th Percentile Latency",
+    "maxl": "Maximum Latency",
+}
+
+EXPERIMENT_TYPE_MAP = {"baseline": "CRDB", "thesis": "DO-CRDB"}
+
 
 # TODO: make this a common function reusable in plotting warmup
 def _load_data(name: str, run: int, exp_type: ExperimentType) -> pd.DataFrame:
@@ -35,7 +54,8 @@ def _load_data(name: str, run: int, exp_type: ExperimentType) -> pd.DataFrame:
     data = json.loads(json_array)
 
     df = pd.DataFrame(data)
-    df["experiment_type"] = str(exp_type)
+    df["type"] = df["type"].str.capitalize()
+    df["experiment_type"] = EXPERIMENT_TYPE_MAP[str(exp_type)]
 
     # NOTE: We only return the last rows of each operation as the data contains
     # cumulative results
@@ -62,9 +82,14 @@ def _get_data(
     return merged_df
 
 
-def _draw_boxplot(
-    output_dir: str, df: pd.DataFrame, metric_col: str, title=None
-):
+def _format_ylabel(metric_col: str) -> str:
+    if metric_col.startswith("p") and metric_col.endswith("l"):
+        percentile = metric_col[1:-1]
+        return f"{percentile}th Percentile Latency (ms)"
+    return metric_col  # fallback
+
+
+def _draw_boxplot(output_dir: str, df: pd.DataFrame, metric_col: str):
     """
     Create a boxplot for the specified latency metric across experiment types
     and operations.
@@ -88,12 +113,15 @@ def _draw_boxplot(
     )
 
     # Titles and labels
-    plt.title(title or f"{metric_col} by Operation and Experiment Type")
-    plt.ylabel(metric_col)
+    plt.title(f"{LABEL_MAPPING[metric_col]} by Operation and Experiment Type")
+    plt.ylabel(f"{METRIC_MAPPING[metric_col]}")
     plt.xlabel("Operation Type")
     plt.legend(title="Experiment Type")
     plt.tight_layout()
     plt.savefig(f"{output_dir}/{metric_col}.png", dpi=300)
+    plt.savefig(
+        f"{output_dir}/{metric_col}.pdf", format="pdf", bbox_inches="tight"
+    )
 
 
 def _compute_boxplot(output_dir: str, df: pd.DataFrame, metric_col: str):
@@ -158,10 +186,8 @@ def _analyze(output_dir, df, metric):
     for op_type in df["type"].unique():
         df_op = df[df["type"] == op_type]
 
-        baseline = df_op[df_op["experiment_type"] == "baseline"][
-            metric
-        ].dropna()
-        thesis = df_op[df_op["experiment_type"] == "thesis"][metric].dropna()
+        baseline = df_op[df_op["experiment_type"] == "CRDB"][metric].dropna()
+        thesis = df_op[df_op["experiment_type"] == "DO-CRDB"][metric].dropna()
 
         if len(baseline) < 2 or len(thesis) < 2:
             continue
