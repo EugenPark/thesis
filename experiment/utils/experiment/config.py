@@ -4,6 +4,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 PROJECT_ID = os.getenv("PROJECT_ID")
-REMOTE_DIR = os.getenv("REMOTE_DIR")
+USER = os.getenv("USER")
 NETWORK = "crdb-net"
 TF_DIR = "infra"
+
+
+def remote_dir(name: str):
+    return f"/dev/disk/by-id/google-{name}-disk"

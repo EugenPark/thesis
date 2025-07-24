@@ -54,3 +54,10 @@ def runInParallel(*fns):
         proc.append(p)
     for p in proc:
         p.join()
+
+
+def convert_duration(duration: str):
+    return (
+        int(duration[:-1])
+        * {"s": 1, "m": 60, "h": 3600, "d": 86400}[duration[-1]]
+    )

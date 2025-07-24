@@ -20,6 +20,7 @@ class ExperimentConfig:
     workload_args: str
     duration: int
     ramp: str
+    restart: bool
 
     def workload_config(self) -> WorkloadConfig:
         return WorkloadConfig(

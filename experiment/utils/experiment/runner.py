@@ -1,6 +1,8 @@
 import os
+import subprocess
 import random
 import time
+import threading
 from .models import ExperimentConfig
 from .docker import DockerManager
 from .terraform import TerraformManager
@@ -8,6 +10,7 @@ from ..analysis import run as run_analysis
 from ..common import (
     get_local_output_dir,
     create_join_str,
+    convert_duration,
     DeploymentType,
     ExperimentType,
 )
@@ -55,6 +58,22 @@ class ExperimentRunner:
             os.makedirs(output_dir, exist_ok=True)
             self.docker.run_server(run, server, exp_type, join_str, output_dir)
 
+        # 🔁 Optional Restart Thread
+        if self.config.restart:
+
+            def restart_container():
+                delay = (convert_duration(self.config.duration) / 3) * 4
+                time.sleep(delay)
+                container_name = "server-2"
+                subprocess.run(
+                    ["docker", "restart", container_name], check=True
+                )
+                print(
+                    f"[Restart Thread] Restarted container: {container_name}"
+                )
+
+            threading.Thread(target=restart_container, daemon=True).start()
+
         # Client
         output_dir = f"{local_output_dir}/data"
         os.makedirs(output_dir, exist_ok=True)
@@ -93,6 +112,35 @@ class ExperimentRunner:
         self.terraform.wait_for_experiment_state(
             experiment_type, workload_config, "start"
         )
+
+        # 🔁 Optional Restart Thread
+        if self.config.restart:
+
+            def restart_container():
+                delay = (convert_duration(self.config.duration) / 3) * 4
+                time.sleep(delay)
+                container_name = "server-3"
+
+                cmd = "docker restart $(docker ps -q)"
+
+                ssh_cmd = [
+                    "gcloud",
+                    "compute",
+                    "ssh",
+                    container_name,
+                    "--zone",
+                    "us-central1-a",
+                    "--command",
+                    cmd,
+                ]
+
+                subprocess.run(ssh_cmd, check=True)
+                print(
+                    f"[Restart Thread] Restarted container: {container_name}"
+                )
+
+            threading.Thread(target=restart_container, daemon=True).start()
+
         self.terraform.wait_for_experiment_state(
             experiment_type, workload_config, "end"
         )

@@ -19,13 +19,21 @@ module "container" {
     {
       name = "experiment"
       hostPath = {
-        path = var.remote_dir
+        path = "/dev/disk/by-id/google-${local.disk_name}"
         type = "DirectoryOrCreate"
       }
     }
   ]
 
   restart_policy = "Never"
+}
+
+
+resource "google_compute_disk" "my_disk" {
+  name = local.disk_name
+  type = "pd-standard"
+  size = 30
+  zone = "us-central1-a"
 }
 
 resource "google_compute_instance" "gce" {
@@ -57,5 +65,10 @@ resource "google_compute_instance" "gce" {
     scopes = [
       "https://www.googleapis.com/auth/cloud-platform",
     ]
+  }
+
+  attached_disk {
+    source = google_compute_disk.my_disk.name
+    mode   = "READ_WRITE"
   }
 }

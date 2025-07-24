@@ -30,8 +30,3 @@ variable "experiment_type" {
   }
 }
 
-
-variable "remote_dir" {
-  type        = string
-  description = "The directory where the experiment is saved to on the machine"
-}

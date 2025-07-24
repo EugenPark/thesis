@@ -50,6 +50,33 @@ def ycsb(
 
 
 @app.command()
+def restart(
+    deployment_type: DeploymentType,
+    name: str,
+    sample_size: int,
+    cluster_size: int,
+    duration: str,
+):
+    workload = "ycsb"
+    workload_args = "--workload=A"
+    ramp = "400s"
+
+    config = ExperimentConfig(
+        name,
+        deployment_type,
+        sample_size,
+        cluster_size,
+        workload,
+        workload_args,
+        duration,
+        ramp,
+        True,
+    )
+    runner = ExperimentRunner(config)
+    runner.run()
+
+
+@app.command()
 def tpcc(
     deployment_type: DeploymentType,
     name: str,

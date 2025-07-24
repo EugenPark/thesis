@@ -2,7 +2,7 @@ import subprocess
 import os
 import time
 import json
-from .config import TF_DIR, PROJECT_ID, REMOTE_DIR
+from .config import TF_DIR, PROJECT_ID, USER, remote_dir
 from ..common import (
     DeploymentType,
     ExperimentType,
@@ -11,6 +11,7 @@ from ..common import (
     EXPERIMENT_DIR,
     create_join_str,
     create_remote_host,
+    convert_duration,
 )
 from .models import WorkloadConfig
 
@@ -82,7 +83,6 @@ class TerraformManager:
             "cluster_size": cluster_size,
             "experiment_dir": EXPERIMENT_DIR,
             "experiment_type": str(experiment_type),
-            "remote_dir": REMOTE_DIR,
         }
 
     def apply(
@@ -117,10 +117,7 @@ class TerraformManager:
         config: WorkloadConfig,
         target_state: str,
     ):
-        duration = (
-            int(config.duration[:-1])
-            * {"s": 1, "m": 60, "h": 3600, "d": 86400}[config.duration[-1]]
-        )
+        duration = convert_duration(config.duration)
         retries = 20
         wait = 30
 
@@ -160,17 +157,23 @@ class TerraformManager:
             time.sleep(wait)
 
     def download(self, name: str, experiment_type: ExperimentType, run: int):
-        target_node = "client"
         zone = "us-central1-a"
         remote_files = ["client.txt", "hdrhistograms.json"]
 
         local_dir = (
-            f"./runs/{name}/run-{run}/experiment-{str(experiment_type)}/data"
+            f"./runs/{name}/run-{run}/experiment-{str(experiment_type)}"
         )
-        os.makedirs(local_dir, exist_ok=True)
+        local_data_dir = f"{local_dir}/data"
+        local_logs_dir = f"{local_dir}/logs"
+        os.makedirs(local_data_dir, exist_ok=True)
+        os.makedirs(local_logs_dir, exist_ok=True)
 
         def try_download(
-            remote_path: str, local_path: str, max_attempts=20, delay=30
+            target_node: str,
+            remote_path: str,
+            local_path: str,
+            max_attempts=20,
+            delay=30,
         ):
             for attempt in range(1, max_attempts + 1):
                 try:
@@ -201,7 +204,31 @@ class TerraformManager:
                 f"File {remote_path} was not found after {max_attempts} attempts."
             )
 
+        # Get data
+        target_node = "client"
+        remote_experiment_dir = remote_dir(target_node)
         for filename in remote_files:
-            local_file = f"{local_dir}/{filename}"
-            remote_file = f"{REMOTE_DIR}/{filename}"
-            try_download(remote_file, str(local_file))
+            local_file = f"{local_data_dir}/{filename}"
+            remote_file = f"{remote_experiment_dir}/{filename}"
+            try_download(target_node, remote_file, str(local_file))
+
+        # Get logs
+        target_node = "server-3"
+        remote_experiment_dir = remote_dir(target_node)
+        subprocess.run(
+            [
+                "gcloud",
+                "compute",
+                "ssh",
+                "server-3",
+                "--command",
+                f"sudo chown {USER}:{USER} {remote_experiment_dir}/cockroach.log",
+            ],
+            check=True,
+        )
+
+        try_download(
+            target_node,
+            f"{remote_experiment_dir}/cockroach.log",
+            local_logs_dir,
+        )

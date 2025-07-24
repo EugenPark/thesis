@@ -29,8 +29,8 @@ def _plot_throughput_comparison(
     df2,
     ax1_title,
     ax2_title,
-    vline1,
-    vline2,
+    y_label,
+    vline,
     suptitle,
     save_path=None,
     group_by_type=False,
@@ -86,22 +86,27 @@ def _plot_throughput_comparison(
                 color="red",
                 linestyle=":",
                 linewidth=2,
-                label="Ramp/Warmup End",
+                label="Ramp/Warm-Up End",
             )
         ax.set_title(title)
         ax.set_xlabel("Time (s)")
-        ax.set_ylabel("Throughput (ops/s)")
+        ax.set_ylabel(y_label)
         ax.grid(True)
         ax.legend()
 
-    _plot(axes[0], df1, ax1_title, vline1)
-    _plot(axes[1], df2, ax2_title, vline2)
+    _plot(axes[0], df1, ax1_title, None)
+    _plot(axes[1], df2, ax2_title, vline)
 
     plt.suptitle(suptitle, fontsize=20)
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     if save_path:
         os.makedirs(save_path, exist_ok=True)
-        plt.savefig(f"{save_path}/warmup.png", dpi=500, bbox_inches="tight")
+        plt.savefig(
+            f"{save_path}/warmup.pdf",
+            format="pdf",
+            dpi=500,
+            bbox_inches="tight",
+        )
     else:
         plt.show()
 
@@ -121,8 +126,8 @@ def compare_ycsb_warmup():
         df2=df_with_ramp,
         ax1_title="Without Ramp-Up",
         ax2_title="With Ramp-Up",
-        vline1=None,
-        vline2=400,
+        y_label="Throughput (ops/s)",
+        vline=400,
         suptitle="YCSB Throughput Comparison: With and Without Ramp-Up",
         save_path="./runs/ycsb-local-warmup-with-ramp/results",
     )
@@ -131,12 +136,12 @@ def compare_ycsb_warmup():
 def compare_tpcc_warmup():
     df_no_ramp = _load_data(
         "./runs/tpcc-local-warmup-without-ramp/run-1/experiment-baseline/data/client.txt",
-        limit=400,
+        limit=300,
     )
 
     df_ramp = _load_data(
         "./runs/tpcc-local-warmup-with-ramp/run-1/experiment-baseline/data/client.txt",
-        limit=400,
+        limit=300,
     )
 
     # Keep only relevant types
@@ -149,9 +154,9 @@ def compare_tpcc_warmup():
         df2=df_ramp,
         ax1_title="Without Ramp-Up",
         ax2_title="With Ramp-Up",
-        vline1=None,
-        vline2=180,
-        suptitle="TPC-C Throughput Comparison: With and Without Ramp-Up",
+        y_label="tpmC",
+        vline=180,
+        suptitle="TPC-C tpmC Comparison: With and Without Ramp-Up",
         save_path="./runs/tpcc-local-warmup-with-ramp/results",
         group_by_type=True,
     )

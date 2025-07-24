@@ -48,7 +48,6 @@ variable "experiment_dir" {
   description = "The directory where the experiment should be written to in the container"
 }
 
-variable "remote_dir" {
-  type        = string
-  description = "The directory where the experiment will be save to on the machine"
+locals {
+  disk_name = "${var.name}-disk"
 }

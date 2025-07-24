@@ -2,6 +2,7 @@ import typer
 import build as b
 import warmup as w
 import run
+import recovery as r
 
 
 app = typer.Typer()
@@ -20,6 +21,11 @@ def build():
 def warmup():
     w.compare_ycsb_warmup()
     w.compare_tpcc_warmup()
+
+
+@app.command()
+def recovery():
+    r.compare_recovery()
 
 
 if __name__ == "__main__":
