@@ -16,7 +16,7 @@ DIRECTIONS = {
 }
 
 METRIC_MAPPING = {
-    "avgl": "ops/sec",
+    "avgl": "ops/s",
     "p50l": "ms",
     "p95l": "ms",
     "p99l": "ms",
